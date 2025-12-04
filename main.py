@@ -16,7 +16,7 @@ import requests
 
 # ================== VERSION & AUTO-UPDATE ==================
 VERSION = "2.0.1"
-UPDATE_URL = ""  # Đặt URL raw của file main.py trên GitHub hoặc server
+UPDATE_URL = "https://raw.githubusercontent.com/criggerbrannon-hash/upload/refs/heads/main/main.py"  # Đặt URL raw của file main.py trên GitHub hoặc server
 # Ví dụ: "https://raw.githubusercontent.com/youruser/yourrepo/main/main.py"
 # Hoặc: "https://yourserver.com/scripts/main.py"
 UPDATE_CHECK_INTERVAL = 3600  # Kiểm tra update mỗi 1 giờ
