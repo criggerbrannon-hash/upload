@@ -15,7 +15,7 @@ import pyperclip
 import requests
 
 # ================== VERSION & AUTO-UPDATE ==================
-VERSION = "2.0.0"
+VERSION = "2.0.1"
 UPDATE_URL = ""  # Đặt URL raw của file main.py trên GitHub hoặc server
 # Ví dụ: "https://raw.githubusercontent.com/youruser/yourrepo/main/main.py"
 # Hoặc: "https://yourserver.com/scripts/main.py"
@@ -150,6 +150,10 @@ TEMPLATES = {
     "TIEPTUC": "tieptuc.png",
     "CHEDO_HIEN_THI": "chedohienthi.png",
     "THUNNGHIEM": "thunghiem.png",
+    # Upload progress indicators
+    "UPLOADING": "dangtailen.png",      # Icon/text "Đang tải lên..." 
+    "PROCESSING": "dangxuly.png",        # Icon/text "Đang xử lý..."
+    "UPLOAD_COMPLETE": "tailenxong.png", # Icon khi upload xong (tick xanh)
 }
 
 def icon(name):
@@ -591,6 +595,139 @@ def file_dialog_select_srt():
         pyautogui.press('tab'); rsleep("tiny")
     pyautogui.press('enter'); rsleep("long")
 
+# ================== UPLOAD PROGRESS CHECK ==================
+def wait_for_upload_complete(timeout_minutes=15, check_interval=30):
+    """
+    Chờ video upload xong trước khi tiếp tục.
+    
+    Cách detect:
+    1. Tìm icon "Đang tải lên" / "Đang xử lý" → đang upload, chờ tiếp
+    2. Tìm icon "Upload xong" / nút "Tiếp" / "Bước 2" → upload xong
+    3. Nếu không detect được gì → chờ hết timeout_minutes phút
+    
+    Returns: True nếu upload xong, False nếu timeout
+    """
+    logging.info(f"⏳ Chờ video upload xong (tối đa {timeout_minutes} phút)...")
+    start_time = time.time()
+    timeout_sec = timeout_minutes * 60
+    
+    while time.time() - start_time < timeout_sec:
+        try:
+            # === KIỂM TRA ĐÃ UPLOAD XONG CHƯA ===
+            
+            # 1. Tìm icon upload hoàn tất (tick xanh)
+            try:
+                if os.path.exists(icon("UPLOAD_COMPLETE")):
+                    pos = pyautogui.locateCenterOnScreen(icon("UPLOAD_COMPLETE"), confidence=0.7)
+                    if pos:
+                        logging.info("✅ Thấy icon 'Upload xong' → Video đã upload xong")
+                        return True
+            except Exception:
+                pass
+            
+            # 2. Tìm nút "Tiếp" → upload xong, đang ở trang metadata
+            try:
+                pos_next = pyautogui.locateCenterOnScreen(icon("NEXT_BTN"), confidence=0.7)
+                if pos_next:
+                    logging.info("✅ Thấy nút 'Tiếp' → Video đã upload xong")
+                    return True
+            except Exception:
+                pass
+            
+            # 3. Tìm "Bước 2" → đã qua metadata
+            try:
+                pos_step2 = pyautogui.locateCenterOnScreen(icon("BUOC2"), confidence=0.7)
+                if pos_step2:
+                    logging.info("✅ Thấy Bước 2 → Video đã upload xong")
+                    return True
+            except Exception:
+                pass
+            
+            # 4. Tìm "Chế độ hiển thị" → đã qua hết các bước
+            try:
+                pos_visibility = pyautogui.locateCenterOnScreen(icon("CHEDO_HIEN_THI"), confidence=0.7)
+                if pos_visibility:
+                    logging.info("✅ Thấy 'Chế độ hiển thị' → Video đã upload xong")
+                    return True
+            except Exception:
+                pass
+            
+            # === KIỂM TRA ĐANG UPLOAD ===
+            is_uploading = False
+            
+            # 5. Tìm icon "Đang tải lên"
+            try:
+                if os.path.exists(icon("UPLOADING")):
+                    pos = pyautogui.locateCenterOnScreen(icon("UPLOADING"), confidence=0.7)
+                    if pos:
+                        is_uploading = True
+                        logging.info("📤 Đang tải lên video...")
+            except Exception:
+                pass
+            
+            # 6. Tìm icon "Đang xử lý"
+            try:
+                if os.path.exists(icon("PROCESSING")):
+                    pos = pyautogui.locateCenterOnScreen(icon("PROCESSING"), confidence=0.7)
+                    if pos:
+                        is_uploading = True
+                        logging.info("⚙️ Đang xử lý video...")
+            except Exception:
+                pass
+            
+            # Log tiến trình
+            elapsed = int(time.time() - start_time)
+            remaining = timeout_sec - elapsed
+            
+            if is_uploading:
+                logging.info(f"⏳ Video đang upload... ({elapsed}s đã qua, còn {remaining}s)")
+            else:
+                logging.info(f"⏳ Chờ upload... ({elapsed}s đã qua, còn {remaining}s)")
+            
+        except Exception as e:
+            logging.debug(f"Lỗi khi check upload: {e}")
+        
+        time.sleep(check_interval)
+    
+    logging.warning(f"⏰ Đã chờ {timeout_minutes} phút, tiếp tục dù chưa xác nhận upload xong")
+    return False
+
+def safe_fallback_step2():
+    """
+    Fallback an toàn khi Step 2 lỗi:
+    1. Chờ upload xong (tối thiểu 10 phút hoặc detect được)
+    2. F5 refresh
+    3. Enter để confirm dialog (nếu có)
+    """
+    logging.warning("⚠️ Step 2 lỗi - Bắt đầu fallback an toàn...")
+    
+    # Chờ upload xong trước
+    upload_done = wait_for_upload_complete(timeout_minutes=10, check_interval=30)
+    
+    if upload_done:
+        logging.info("✅ Upload đã xong, tiến hành F5...")
+    else:
+        logging.info("⏰ Đã chờ đủ 10 phút, tiến hành F5...")
+    
+    # F5 refresh
+    try:
+        pyautogui.press('f5')
+        rsleep("long")  # Chờ trang load
+        
+        # Enter để đóng dialog confirm (nếu có)
+        pyautogui.press('enter')
+        rsleep("medium")
+        
+        # Chờ thêm cho trang ổn định
+        time.sleep(5)
+        
+        logging.info("✅ Đã F5 + Enter, sẵn sàng tiếp tục")
+        return True
+        
+    except Exception as e:
+        logging.error(f"Lỗi khi fallback: {e}")
+        return False
+
 # ================== UPLOAD FLOW ==================
 def press(key, n=1, bucket="tiny"):
     for _ in range(n):
@@ -1010,8 +1147,8 @@ def main():
         
         # Step 2
         if not handle_step2_flow(active_row):
-            pyautogui.press('f5'); rsleep("medium")
-            pyautogui.press('enter'); rsleep("medium")
+            # Fallback an toàn: chờ upload xong rồi mới F5
+            safe_fallback_step2()
         
         # Step 3-4
         if handle_step3_4_flow(active_row, client, code):
