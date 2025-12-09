@@ -38,8 +38,8 @@ class SrtEntry:
 class Settings:
     """Application settings loaded from YAML configuration."""
     project_root: str
-    gemini_api_key: str
-    gemini_model: str
+    gemini_api_keys: list[str]  # Hỗ trợ nhiều API keys
+    gemini_models: list[str]    # Hỗ trợ nhiều models
     flowslab_base_url: str
     browser: str
     headless: bool
@@ -47,20 +47,43 @@ class Settings:
     max_scenes_per_account: int
     max_retries: int
     retry_delay: int
+    wait_timeout: int
     whisper_model: str
+    whisper_language: str
     min_scene_duration: int
     max_scene_duration: int
     log_level: str
 
+    @property
+    def gemini_api_key(self) -> str:
+        """Get first API key (for backwards compatibility)."""
+        return self.gemini_api_keys[0] if self.gemini_api_keys else ""
+
+    @property
+    def gemini_model(self) -> str:
+        """Get first model (for backwards compatibility)."""
+        return self.gemini_models[0] if self.gemini_models else "gemini-2.0-flash"
+
     @classmethod
     def from_dict(cls, data: dict) -> 'Settings':
         """Create Settings from dictionary, with validation."""
-        required_keys = [
-            'project_root', 'gemini_api_key', 'gemini_model',
-            'flowslab_base_url', 'browser'
-        ]
+        # Hỗ trợ cả format cũ (gemini_api_key) và mới (gemini_api_keys)
+        api_keys = data.get('gemini_api_keys', [])
+        if not api_keys and 'gemini_api_key' in data:
+            api_keys = [data['gemini_api_key']]
 
+        models = data.get('gemini_models', [])
+        if not models and 'gemini_model' in data:
+            models = [data['gemini_model']]
+        if not models:
+            models = ['gemini-2.0-flash']
+
+        required_keys = ['project_root', 'flowslab_base_url']
         missing_keys = [k for k in required_keys if k not in data]
+
+        if not api_keys:
+            missing_keys.append('gemini_api_keys (or gemini_api_key)')
+
         if missing_keys:
             raise ValueError(
                 f"Missing required configuration keys: {', '.join(missing_keys)}\n"
@@ -69,8 +92,8 @@ class Settings:
 
         return cls(
             project_root=data['project_root'],
-            gemini_api_key=data['gemini_api_key'],
-            gemini_model=data.get('gemini_model', 'gemini-1.5-flash'),
+            gemini_api_keys=api_keys,
+            gemini_models=models,
             flowslab_base_url=data['flowslab_base_url'],
             browser=data.get('browser', 'chrome'),
             headless=data.get('headless', False),
@@ -78,7 +101,9 @@ class Settings:
             max_scenes_per_account=data.get('max_scenes_per_account', 50),
             max_retries=data.get('max_retries', 3),
             retry_delay=data.get('retry_delay', 5),
+            wait_timeout=data.get('wait_timeout', 30),
             whisper_model=data.get('whisper_model', 'base'),
+            whisper_language=data.get('whisper_language', 'vi'),
             min_scene_duration=data.get('min_scene_duration', 15),
             max_scene_duration=data.get('max_scene_duration', 25),
             log_level=data.get('log_level', 'INFO'),

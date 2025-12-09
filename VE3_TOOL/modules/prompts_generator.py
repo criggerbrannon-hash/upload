@@ -116,11 +116,15 @@ class PromptGenerator:
     """
     Generates prompts for image and video generation using Gemini API.
 
+    Supports multiple API keys and models with automatic rotation on rate limit.
+
     Attributes:
         settings: Application settings.
         logger: Logger instance.
-        api_key: Gemini API key.
-        model: Gemini model name.
+        api_keys: List of Gemini API keys.
+        models: List of Gemini models.
+        current_key_index: Index of current API key being used.
+        current_model_index: Index of current model being used.
     """
 
     def __init__(
@@ -137,15 +141,56 @@ class PromptGenerator:
         """
         self.settings = settings
         self.logger = logger or get_logger("ve3_tool.prompts_generator")
-        self.api_key = settings.gemini_api_key
-        self.model = settings.gemini_model
 
-        if not self.api_key or self.api_key == "YOUR_GEMINI_API_KEY_HERE":
+        # Hỗ trợ nhiều API keys và models
+        self.api_keys = settings.gemini_api_keys
+        self.models = settings.gemini_models
+        self.current_key_index = 0
+        self.current_model_index = 0
+
+        if not self.api_keys or self.api_keys[0] == "YOUR_GEMINI_API_KEY_HERE":
             raise ValueError(
                 "Gemini API key not configured.\n"
                 "Please set your API key in config/settings.yaml\n"
                 "Get a free API key at: https://makersuite.google.com/app/apikey"
             )
+
+        self.logger.info(f"Loaded {len(self.api_keys)} API keys, {len(self.models)} models")
+
+    @property
+    def api_key(self) -> str:
+        """Get current API key."""
+        return self.api_keys[self.current_key_index]
+
+    @property
+    def model(self) -> str:
+        """Get current model."""
+        return self.models[self.current_model_index]
+
+    def _rotate_api_key(self) -> bool:
+        """
+        Rotate to the next API key.
+
+        Returns:
+            True if rotated successfully, False if all keys exhausted.
+        """
+        self.current_key_index = (self.current_key_index + 1) % len(self.api_keys)
+        if self.current_key_index == 0:
+            # Đã xoay hết vòng, thử model tiếp theo
+            return self._rotate_model()
+        self.logger.info(f"Rotated to API key #{self.current_key_index + 1}")
+        return True
+
+    def _rotate_model(self) -> bool:
+        """
+        Rotate to the next model.
+
+        Returns:
+            True if rotated successfully, False if all models exhausted.
+        """
+        self.current_model_index = (self.current_model_index + 1) % len(self.models)
+        self.logger.info(f"Rotated to model: {self.model}")
+        return True
 
     def generate_for_project(
         self,
@@ -261,6 +306,8 @@ class PromptGenerator:
         """
         Call Gemini API with the given prompt.
 
+        Supports automatic API key and model rotation on rate limit or errors.
+
         Args:
             prompt: User prompt.
             system_prompt: System instructions.
@@ -269,11 +316,8 @@ class PromptGenerator:
             Gemini response text.
 
         Raises:
-            RuntimeError: If API call fails.
+            RuntimeError: If API call fails after all retries and rotations.
         """
-        url = GEMINI_API_URL.format(model=self.model)
-        url = f"{url}?key={self.api_key}"
-
         # Build request body
         contents = []
 
@@ -306,12 +350,19 @@ class PromptGenerator:
             "Content-Type": "application/json"
         }
 
-        # Make request with retry
+        # Make request with retry and rotation
         max_retries = self.settings.max_retries
         retry_delay = self.settings.retry_delay
+        total_keys = len(self.api_keys)
+        total_models = len(self.models)
+        max_total_attempts = max_retries * total_keys * total_models
 
-        for attempt in range(max_retries):
+        for attempt in range(max_total_attempts):
+            url = GEMINI_API_URL.format(model=self.model)
+            url = f"{url}?key={self.api_key}"
+
             try:
+                self.logger.debug(f"Calling Gemini API (key #{self.current_key_index + 1}, model: {self.model})")
                 response = requests.post(url, headers=headers, json=body, timeout=120)
 
                 if response.status_code == 200:
@@ -326,31 +377,40 @@ class PromptGenerator:
                     raise RuntimeError("Empty response from Gemini API")
 
                 elif response.status_code == 429:
-                    # Rate limited
-                    self.logger.warning(f"Rate limited, waiting {retry_delay * (attempt + 1)}s...")
-                    time.sleep(retry_delay * (attempt + 1))
+                    # Rate limited - rotate to next key
+                    self.logger.warning(f"Rate limited on key #{self.current_key_index + 1}, rotating...")
+                    self._rotate_api_key()
+                    time.sleep(retry_delay)
+                    continue
+
+                elif response.status_code in [400, 403]:
+                    # Bad request or forbidden - try next key/model
+                    error_msg = response.text
+                    self.logger.warning(f"API error {response.status_code}: {error_msg[:100]}")
+                    self._rotate_api_key()
+                    time.sleep(1)
                     continue
 
                 else:
                     error_msg = response.text
                     self.logger.error(f"Gemini API error: {response.status_code} - {error_msg}")
-                    raise RuntimeError(f"Gemini API error: {response.status_code}")
-
-            except requests.exceptions.Timeout:
-                self.logger.warning(f"Request timeout, attempt {attempt + 1}/{max_retries}")
-                if attempt < max_retries - 1:
+                    self._rotate_api_key()
                     time.sleep(retry_delay)
                     continue
-                raise RuntimeError("Gemini API timeout")
+
+            except requests.exceptions.Timeout:
+                self.logger.warning(f"Request timeout, rotating key...")
+                self._rotate_api_key()
+                time.sleep(retry_delay)
+                continue
 
             except requests.exceptions.RequestException as e:
                 self.logger.error(f"Request error: {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                    continue
-                raise RuntimeError(f"Request failed: {e}")
+                self._rotate_api_key()
+                time.sleep(retry_delay)
+                continue
 
-        raise RuntimeError("Max retries exceeded for Gemini API")
+        raise RuntimeError("All API keys and models exhausted")
 
     def _parse_json_response(self, response: str) -> dict:
         """

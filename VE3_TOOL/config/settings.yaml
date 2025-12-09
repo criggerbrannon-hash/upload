@@ -1,37 +1,44 @@
 # VE3 Tool Configuration
 # ========================
 
-# Project root directory (absolute or relative path)
 project_root: "./VE3_TOOL"
 
-# Gemini API Configuration
-gemini_api_key: "YOUR_GEMINI_API_KEY_HERE"
-gemini_model: "gemini-1.5-flash"
+# Gemini API Configuration - Hỗ trợ nhiều API keys và models
+gemini_api_keys:
+  - "AIzaSyBbKrf2AfG7Ny0CqwYn0bd-KiEMOuSLUSo"
+  - "AIzaSyBiEKae74TNJeBNd7GbvTvlqaYHUjgmsx4"
+  - "AIzaSyDZtBh-T9RtXhgty50E9yamq6mxQv9WIAc"
+  - "AIzaSyC7_ge6bAb0RJ1p3GbsylZC_AJ28qe9wo8"
+  - "AIzaSyBCbFlISQfnftk464qex19RLeXSuD1N624"
+  - "AIzaSyC3qgzvyafT4GYG-Wt73oG5JL_GCZvLej4"
+  - "AIzaSyBE9ldUtHkoSELNHfBVLPeIG8bovSlJjUs"
+
+gemini_models:
+  - "gemini-2.0-flash"
+  - "gemini-2.5-flash"
+  - "gemini-2.5-flash-lite"
 
 # Flows Lab Configuration
-flowslab_base_url: "https://flowslab.io"
+flowslab_base_url: "https://app.flowslab.io"
 
 # Browser Configuration
-# Options: "chrome" or "edge"
 browser: "chrome"
-
-# Selenium Configuration
 headless: false
 implicit_wait: 10
 
-# Account Management
+# Automation Settings
 max_scenes_per_account: 50
-
-# Retry Configuration
 max_retries: 3
 retry_delay: 5
+wait_timeout: 30
 
-# Voice to SRT Configuration
-whisper_model: "base"  # Options: tiny, base, small, medium, large
+# Scene Grouping Settings
+min_scene_duration: 15
+max_scene_duration: 25
 
-# Scene Grouping Configuration
-min_scene_duration: 15  # seconds
-max_scene_duration: 25  # seconds
+# Whisper Settings
+whisper_model: "base"
+whisper_language: "vi"
 
-# Logging Configuration
-log_level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR
+# Logging
+log_level: "INFO"
