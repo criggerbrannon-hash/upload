@@ -1,0 +1,4 @@
+account_name,email,password,profile_dir,cookies_file,active
+account_01,user1@example.com,password123,/path/to/chrome/profile1,,true
+account_02,user2@example.com,password456,/path/to/chrome/profile2,,true
+account_03,user3@example.com,password789,,,false

@@ -1,0 +1,37 @@
+# VE3 Tool Configuration
+# ========================
+
+# Project root directory (absolute or relative path)
+project_root: "./VE3_TOOL"
+
+# Gemini API Configuration
+gemini_api_key: "YOUR_GEMINI_API_KEY_HERE"
+gemini_model: "gemini-1.5-flash"
+
+# Flows Lab Configuration
+flowslab_base_url: "https://flowslab.io"
+
+# Browser Configuration
+# Options: "chrome" or "edge"
+browser: "chrome"
+
+# Selenium Configuration
+headless: false
+implicit_wait: 10
+
+# Account Management
+max_scenes_per_account: 50
+
+# Retry Configuration
+max_retries: 3
+retry_delay: 5
+
+# Voice to SRT Configuration
+whisper_model: "base"  # Options: tiny, base, small, medium, large
+
+# Scene Grouping Configuration
+min_scene_duration: 15  # seconds
+max_scene_duration: 25  # seconds
+
+# Logging Configuration
+log_level: "INFO"  # Options: DEBUG, INFO, WARNING, ERROR

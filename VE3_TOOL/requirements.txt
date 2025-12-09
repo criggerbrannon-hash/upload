@@ -1,0 +1,28 @@
+# VE3 Tool - Python Dependencies
+# ================================
+
+# Core dependencies
+pyyaml>=6.0
+openpyxl>=3.1.0
+requests>=2.28.0
+
+# Selenium for web automation
+selenium>=4.10.0
+
+# Voice transcription (Whisper)
+# Choose one of the following:
+
+# Option 1: Standard Whisper (OpenAI)
+openai-whisper>=20231117
+
+# Option 2: Whisper with better timestamps (recommended)
+# whisper-timestamped>=1.14.0
+
+# Optional: GPU acceleration for Whisper
+# Uncomment and install separately if you have CUDA:
+# torch>=2.0.0
+# torchvision>=0.15.0
+# torchaudio>=2.0.0
+
+# Optional: WebDriver manager for automatic driver installation
+# webdriver-manager>=4.0.0
